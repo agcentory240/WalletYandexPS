@@ -16,7 +16,18 @@ class WalletYandexPS_Mobile_YandexController extends Application_Controller_Mobi
 				$model = new WalletYandexPS_Model_PaymentMethodsYandex();
 				$model->find(['wallet_id'=>$wallet->getId()]);
 				if ($model->getId()) {
-				
+
+                    /* new - if instant pay  */
+                    $bill = new Wallet_Model_Bill();
+                    if ($params['wallet_bill_id']!="" && is_numeric($params['wallet_bill_id'])) {
+                        // overwrite some data from bill
+                        $bill->find($params['wallet_bill_id']);
+                        if ($bill->getId()) {
+                            $params['amount'] = $bill->getSumm();
+                        }
+
+                    }                    
+
 					//Создадим запись в истории
 					$history = new Wallet_Model_PaymentHistory();
 					$history
@@ -24,7 +35,8 @@ class WalletYandexPS_Mobile_YandexController extends Application_Controller_Mobi
 						->setWalletCustomerId($params['wallet_customer_id'])
 						->setSumm($params['amount'])
 						->setCode('yandex')
-						->setComplete(0)
+                        ->setComplete(0)
+                        ->setWalletBillId($bill->getId())
 						->save();
 				
 				
@@ -51,7 +63,7 @@ class WalletYandexPS_Mobile_YandexController extends Application_Controller_Mobi
 									'type' => 'redirect',
 									'return_url' => parent::getUrl('walletyandexps/mobile_yandex/return', array('value_id' => $params['value_id'], 'wallet_id' => $params['wallet_id'],"wallet_customer_id"=>$params['wallet_customer_id'],"wallet_history_id"=>$history->getid(),'sb-token' => Zend_Session::getId())),
 								),
-								'description' => __("Deposit funds in the wallet") . " #" .$history->getId(),
+								'description' => ($bill->getId())?$bill->getTitle():__("Deposit funds in the wallet") . "#" .$history->getId(),
 							),
 							$idempotenceKey
 						);					
@@ -63,7 +75,11 @@ class WalletYandexPS_Mobile_YandexController extends Application_Controller_Mobi
 					catch(YandexCheckout\Common\Exceptions\BadApiRequestException $ex ) {
 						$data['success']=false;
 						$data['error_yandex']=Zend_Json::decode($ex->getResponseBody());
-						$history->setComplete(-1)->save();					
+                        $history->setComplete(-1)->save();
+                        /* decline bill*/
+                        if ($history->getWalletBillId()!="" && is_numeric($history->getWalletBillId()) && $history->getWalletBillId()>0) {
+                            $wallet_customer->cancelBill($history->getWalletBillId());
+                        }                        		
 					}
 
 					
@@ -107,7 +123,12 @@ class WalletYandexPS_Mobile_YandexController extends Application_Controller_Mobi
 					$data['payment_data'] = $payment;
 					if ($payment->status=="succeeded") {
 						$history->setComplete(1)->save();
-						$wallet_customer->addTransaction($history->getSumm(),"Yandex - ".__("Deposit funds in the wallet"),'in',0,$wallet_customer->getId());
+                        $wallet_customer->addTransaction($history->getSumm(),"Yandex - ".__("Deposit funds in the wallet"),'in',0,$wallet_customer->getId());
+                        /* accept bill*/
+                        if ($history->getWalletBillId()!="" && is_numeric($history->getWalletBillId()) && $history->getWalletBillId()>0) {
+                            $wallet_customer->acceptBill($history->getWalletBillId());
+                        }
+
 						$this->_redirect('walletyandexps/mobile_yandex/result', array(
 							'value_id' => $params['value_id'],
 							'wallet_id' => $params['wallet_id'],
@@ -124,7 +145,13 @@ class WalletYandexPS_Mobile_YandexController extends Application_Controller_Mobi
 							'status' => -1,
 						));						
 					} else if ($payment->status=="canceled") {
-						$history->setComplete(-1)->save();
+                        $history->setComplete(-1)->save();
+                        
+                        /* decline bill*/
+                        if ($history->getWalletBillId()!="" && is_numeric($history->getWalletBillId()) && $history->getWalletBillId()>0) {
+                            $wallet_customer->cancelBill($history->getWalletBillId());
+                        }
+
 						$data['yandex_errror'] = "payment status canceled";
 						$this->_redirect('walletyandexps/mobile_yandex/result', array(
 							'value_id' => $params['value_id'],
@@ -149,7 +176,13 @@ class WalletYandexPS_Mobile_YandexController extends Application_Controller_Mobi
 			} else {
 				//транзакции нет такой
 				$data['yandex_errror'] = "transaction_id not found";
-				$history->setComplete(-1)->save();
+                $history->setComplete(-1)->save();
+
+                /* decline bill*/
+                if ($history->getWalletBillId()!="" && is_numeric($history->getWalletBillId()) && $history->getWalletBillId()>0) {
+                    $wallet_customer->cancelBill($history->getWalletBillId());
+                }
+
 				$this->_redirect('walletyandexps/mobile_yandex/result', array(
 					'value_id' => $params['value_id'],
 					'wallet_id' => $params['wallet_id'],

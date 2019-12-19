@@ -8,6 +8,11 @@ App.config(function($stateProvider, HomepageLayoutProvider) {
         controller: 'WalletYandexPSController',
         templateUrl: "modules/walletyandexps/templates/l1/payment.html"
     });
+    $stateProvider.state('walletyandex-payment-instant', {
+        url: BASE_PATH+"/walletyandexps/mobile_walletyandex/find/value_id/:value_id/wallet_id/:wallet_id/wallet_customer_id/:wallet_customer_id/amount/:amount/bill_id/:bill_id",
+        controller: 'WalletYandexPSController',
+        templateUrl: "modules/walletyandexps/templates/l1/payment.html"
+    });    
     $stateProvider.state('walletyandex-payment-result', {
         url: BASE_PATH+"/walletyandexps/mobile_yandex/result/value_id/:value_id/wallet_id/:wallet_id/wallet_customer_id/:wallet_customer_id/status/:status",
         controller: 'WalletYandexPSResultController',
@@ -24,7 +29,8 @@ App.config(function($stateProvider, HomepageLayoutProvider) {
 	$scope.data.value_id = $stateParams.value_id;
 	$scope.data.amount = $stateParams.amount;
 	$scope.data.wallet_id = $stateParams.wallet_id;
-	$scope.data.wallet_customer_id = $stateParams.wallet_customer_id;
+    $scope.data.wallet_customer_id = $stateParams.wallet_customer_id;
+    $scope.data.wallet_bill_id = $stateParams.bill_id;
     $scope.is_loading = true;
 	$scope.old_style = true;
 	console.log("WalletYandexPSController:");
